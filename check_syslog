@@ -110,7 +110,6 @@ else
      if test $CCODE == 1; then 
         exit 2;
      elif test $WCODE == 1; then 
-        echo -e mbody
     	exit 1;
      else
         echo "All syslog events is OK"
