@@ -1,0 +1,121 @@
+#!/bin/bash
+#Syslog-ng events logger for nagios
+#Created by Grigorov Aleksandr (AGrigorov@ct.cnt.ru)
+#
+
+CHECKLOGWARN='/usr/lib64/nagios/plugins/ct/logwarn'
+declare -a exit_array
+LOGPATH='/var/log/syslog-ng'
+export LOGPATH
+check_level() 
+{
+ local levels=([0]='emerg' [1]='alert' [2]='crit' [3]='err' [4]='warning' [5]='notice' [6]='debug')
+ local LEVEL=$1
+ local IP=$2
+ export FILE_LEVEL=${levels[$LEVEL]}
+
+file="$LOGPATH/$IP/$FILE_LEVEL"
+if [ -f "$file" ]
+then
+    "$CHECKLOGWARN" "$file"
+    ex=$?
+    return $ex
+else
+    return 0
+fi
+}
+
+usage()
+{
+cat << EOF
+usage: $0 options
+
+This script run the syslog events a machine host.
+
+OPTIONS:
+   -h      Show this message
+   -H      IP address of host
+   -c      Critical level (0 - emerg, 1 - alert, 2 - crit, 3 - err, 4 - warn, 5 - notice, 6 - info, 7 - debug)
+   -w      Warning level (0 - emerg, 1 - alert, 2 - crit, 3 - err, 4 - warn, 5 - notice, 6 - info, 7 - debug)
+EOF
+}
+
+function contains() {
+local n=$#
+local value=${!n}
+for ((i=1;i < $#;i++)) {
+    if [ "${!i}" == "${value}" ]; then
+            echo "y"
+            return 0
+    fi
+    }
+    echo "n"
+    return 1
+}
+parse_params_run()
+{
+local STATUS=$1
+local IP=$2
+LEVEL=( ${STATUS//[,\\]/ } )
+for a in "${LEVEL[@]}"
+do
+check_level $a $IP
+ex=$?
+exit_array=("${exit_array[@]}" "$ex")
+done
+if [ $(contains "${exit_array[@]}" "1") == "y" ]; then
+    return 1
+else
+    return 0
+fi
+}
+
+HOST=
+CRITICAL=
+WARNING=
+
+while getopts "h:H:c:w:v" OPTION
+    do
+     case $OPTION in
+         h)
+             usage
+             exit 3
+             ;;
+         H)
+             HOST=$OPTARG
+             ;;
+         c)
+             CRITICAL=$OPTARG
+             ;;
+         w)
+             WARNING=$OPTARG
+             ;;
+         ?)
+             usage
+             exit 3
+             ;;
+     esac
+done
+
+
+if [[ -z $HOST ]] || [[ -z $CRITICAL ]] || [[ -z $WARNING ]]
+then
+     usage
+     exit 3
+else
+     parse_params_run $CRITICAL $HOST
+     CCODE=$?
+     parse_params_run $WARNING $HOST
+     WCODE=$?
+     if test $CCODE == 1; then 
+        exit 2;
+     elif test $WCODE == 1; then 
+        echo -e mbody
+    	exit 1;
+     else
+        echo "All syslog events is OK"
+        exit 0;
+     fi
+fi
+
+
